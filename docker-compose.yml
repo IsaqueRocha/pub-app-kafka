@@ -1,0 +1,79 @@
+version: "3"
+
+services:
+  pub_app:
+    build: ./.docker/app
+    container_name: pub_app
+    image: isaquero/product-app:dev
+    volumes:
+      - ./www:/var/www:delegated
+    depends_on:
+      - db
+      - redis
+
+  nginx:
+    build:
+      context: ./.docker/nginx
+    container_name: pub_app_nginx
+    image: isaquero/pub_app_nginx:dev
+    restart: always
+    tty: true
+    ports:
+      - "8000:80"
+    volumes:
+      - ./www:/var/www:delegated
+    depends_on:
+      - pub_app
+
+  db:
+    build:
+      context: ./.docker/mysql
+    container_name: pub_app_db
+    image: isaquero/pub_app_db:dev
+    restart: always
+    tty: true
+    ports:
+      - "33006:3306"
+    volumes:
+      - ./.docker/dbdata:/var/lib/mysql:delegated
+    environment:
+      MYSQL_USER: root
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: pub_app
+
+  redis:
+    image: redis:alpine
+    container_name: pub_app_redis
+    expose:
+      - 6379
+
+  zookeeper:
+    container_name: zookeeper
+    image: confluentinc/cp-zookeeper:latest
+    ports:
+      - "2182:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    # volumes:
+    #   - "./.docker/zookeeper/data:/var/lib/zookeeper/data"
+    #   - "./.docker/zookeeper/log:/var/lib/zookeeper/log"
+    #   - "./.docker/zookeeper/secrets:/var/lib/zookeeper/secrets"
+
+  kafka:
+    container_name: kafka
+    image: confluentinc/cp-kafka:latest
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - pub_app
+    # volumes:
+    #   - "./.docker/kafka/data:/var/lib/kafka/data"
+    #   - "./.docker/kafka/secrets:/var/lib/kafka/secrets"
+
+networks:
+  default:
+    external:
+      name: pub_sub_network
